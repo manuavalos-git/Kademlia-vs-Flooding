@@ -1,0 +1,59 @@
+# Configuration for P2P Simulation Experiments
+
+# Network sizes to simulate
+network_sizes:
+  - 10
+  - 50
+  - 100
+  - 500
+  - 1000
+
+# Flooding parameters
+flooding:
+  neighbors_k: 10        # Number of neighbors per node
+  ttl: 20                # Time-to-live for query propagation
+
+  # Alternative K values for sensitivity analysis (optional)
+  k_values:
+    - 5
+    - 10
+    - 20
+
+# Kademlia parameters
+kademlia:
+  id_bits_b: 8           # Number of bits for node ID (8 for small nets, 16 for medium)
+  k_bucket_size: 3       # K parameter for k-buckets (typical: 3-20)
+  alpha: 3               # Concurrent lookups in iterative search
+
+  # Alternative B values for sensitivity analysis (optional)
+  b_values:
+    - 8
+    - 16
+
+# Churn simulation
+churn:
+  rates:                 # Churn rates to test
+    - 0.05               # 5%
+    - 0.10               # 10%
+    - 0.20               # 20%
+
+  time_steps: 100        # Number of time steps per churn simulation
+  queries_per_step: 10   # Queries to perform at each time step
+
+# Experiment parameters
+experiment:
+  runs: 100              # Repetitions per configuration (for statistical significance)
+  random_seed: 42        # Random seed for reproducibility
+
+# Theoretical validation parameters
+theory:
+  file_size_f: 1e9       # File size in bits (1 GB)
+  server_upload_us: 1e8  # Server upload rate in bps (100 Mbps)
+  min_download_dmin: 1e7 # Min peer download rate in bps (10 Mbps)
+  avg_peer_upload_ui: 5e6 # Avg peer upload rate in bps (5 Mbps)
+
+# Output settings
+output:
+  data_dir: "data"
+  figures_dir: "informe/figures"
+  csv_format: "results_N{n}_{params}.csv"

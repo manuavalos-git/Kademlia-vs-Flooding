@@ -1,0 +1,30 @@
+# Core dependencies for P2P simulation
+networkx>=3.0      # Graph and network topology
+numpy>=1.24        # Numerical computations
+pandas>=1.5        # Data analysis and CSV handling
+
+# Visualization
+matplotlib>=3.5    # Plotting
+seaborn>=0.12      # Statistical visualization
+
+# Statistical analysis
+scipy>=1.10        # Statistical functions
+
+# Simulation (optional - for discrete event simulation)
+simpy>=4.0
+
+# Development and analysis
+jupyter>=1.0       # Interactive notebooks
+notebook>=6.5
+
+# Testing
+pytest>=7.0        # Unit testing
+pytest-cov>=4.0    # Test coverage
+
+# Code quality
+black>=23.0        # Code formatting
+flake8>=6.0        # Linting
+mypy>=1.0          # Type checking
+
+# Configuration
+pyyaml>=6.0        # YAML config files
