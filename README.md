@@ -61,7 +61,7 @@ pip install -r requirements.txt
 ### Ejecutar Simulación Flooding
 
 ```bash
-python src/simulation.py --mode flooding --nodes 1000 --neighbors 10 --runs 100
+python -m src.simulation --mode flooding --nodes <N> --neighbors <K> --runs 100
 ```
 
 Parámetros:
@@ -72,7 +72,7 @@ Parámetros:
 ### Ejecutar Simulación Kademlia
 
 ```bash
-python src/simulation.py --mode kademlia --nodes 1000 --bits 8 --runs 100
+python -m src.simulation --mode kademlia --nodes <N> --bits <B> --runs 100
 ```
 
 Parámetros:
@@ -83,12 +83,78 @@ Parámetros:
 ### Ejecutar Simulación con Churn
 
 ```bash
-python src/simulation.py --mode churn --architecture flooding --churn-rate 0.05 --nodes 500 --runs 50
+python -m src.simulation --mode churn --architecture <flooding|kademlia> --churn-rate <tasa> --nodes <N> --runs 100
 ```
 
 Parámetros:
 - `--architecture`: `flooding` o `kademlia`
 - `--churn-rate`: Porcentaje de nodos que abandonan/unen por paso (0.05 = 5%)
+
+## Reproducir Experimentos
+
+Los siguientes comandos reproducen exactamente los experimentos del informe.
+
+### Flooding — comparación principal (K=10)
+
+```bash
+python -m src.simulation --mode flooding --nodes 10  --neighbors 10 --runs 100
+python -m src.simulation --mode flooding --nodes 50  --neighbors 10 --runs 100
+python -m src.simulation --mode flooding --nodes 100 --neighbors 10 --runs 100
+python -m src.simulation --mode flooding --nodes 500 --neighbors 10 --runs 100
+python -m src.simulation --mode flooding --nodes 1000 --neighbors 10 --runs 100
+```
+
+### Flooding — sensibilidad al parámetro K
+
+```bash
+# K=5
+python -m src.simulation --mode flooding --nodes 10  --neighbors 5 --runs 100
+python -m src.simulation --mode flooding --nodes 50  --neighbors 5 --runs 100
+python -m src.simulation --mode flooding --nodes 100 --neighbors 5 --runs 100
+python -m src.simulation --mode flooding --nodes 500 --neighbors 5 --runs 100
+python -m src.simulation --mode flooding --nodes 1000 --neighbors 5 --runs 100
+
+# K=20
+python -m src.simulation --mode flooding --nodes 50  --neighbors 20 --runs 100
+python -m src.simulation --mode flooding --nodes 100 --neighbors 20 --runs 100
+python -m src.simulation --mode flooding --nodes 500 --neighbors 20 --runs 100
+python -m src.simulation --mode flooding --nodes 1000 --neighbors 20 --runs 100
+```
+
+### Kademlia — comparación principal (B=8)
+
+```bash
+python -m src.simulation --mode kademlia --nodes 10  --bits 8 --runs 100
+python -m src.simulation --mode kademlia --nodes 50  --bits 8 --runs 100
+python -m src.simulation --mode kademlia --nodes 100 --bits 8 --runs 100
+python -m src.simulation --mode kademlia --nodes 500 --bits 8 --runs 100
+python -m src.simulation --mode kademlia --nodes 1000 --bits 8 --runs 100
+```
+
+### Kademlia — sensibilidad al parámetro B
+
+```bash
+# B=16
+python -m src.simulation --mode kademlia --nodes 10  --bits 16 --runs 100
+python -m src.simulation --mode kademlia --nodes 50  --bits 16 --runs 100
+python -m src.simulation --mode kademlia --nodes 100 --bits 16 --runs 100
+python -m src.simulation --mode kademlia --nodes 500 --bits 16 --runs 100
+python -m src.simulation --mode kademlia --nodes 1000 --bits 16 --runs 100
+```
+
+### Churn — robustez bajo fallas
+
+```bash
+# Flooding
+python -m src.simulation --mode churn --architecture flooding --churn-rate 0.05 --nodes 1000 --runs 100
+python -m src.simulation --mode churn --architecture flooding --churn-rate 0.10 --nodes 1000 --runs 100
+python -m src.simulation --mode churn --architecture flooding --churn-rate 0.20 --nodes 1000 --runs 100
+
+# Kademlia
+python -m src.simulation --mode churn --architecture kademlia --churn-rate 0.05 --nodes 1000 --runs 100
+python -m src.simulation --mode churn --architecture kademlia --churn-rate 0.10 --nodes 1000 --runs 100
+python -m src.simulation --mode churn --architecture kademlia --churn-rate 0.20 --nodes 1000 --runs 100
+```
 
 ### Generar Gráficos y Análisis
 
