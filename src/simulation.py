@@ -9,8 +9,8 @@ import logging
 import sys
 from pathlib import Path
 
-from .flooding import run_flooding_experiment
-from .kademlia import run_kademlia_experiment
+from .flooding import run_flooding_experiment, run_flooding_churn_experiment
+from .kademlia import run_kademlia_experiment, run_kademlia_churn_experiment
 from .metrics import MetricsCollector
 
 # Setup logging
@@ -117,14 +117,73 @@ def run_kademlia_simulation(args) -> None:
 
 
 def run_churn_simulation(args) -> None:
-    """Run churn simulation (to be implemented in Tarea 4).
+    """Run churn simulation for flooding or Kademlia.
 
     Args:
         args: Command-line arguments
     """
-    logger.error("Churn simulation not yet implemented (Tarea 4)")
-    print("Churn simulation will be implemented in Tarea 4")
-    sys.exit(1)
+    if not args.architecture:
+        logger.error("--architecture is required for churn mode (flooding or kademlia)")
+        sys.exit(1)
+
+    churn_pct = int(args.churn_rate * 100)
+    output_dir = Path(args.output_dir) / "churn"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.architecture == 'flooding':
+        logger.info(
+            f"Starting CHURN simulation: flooding, N={args.nodes}, K={args.neighbors}, "
+            f"churn={args.churn_rate}, rounds={args.rounds}, searches/round={args.runs}"
+        )
+        results = run_flooding_churn_experiment(
+            network_size=args.nodes,
+            neighbors_k=args.neighbors,
+            churn_rate=args.churn_rate,
+            num_rounds=args.rounds,
+            searches_per_round=args.runs,
+            ttl=args.ttl,
+            seed=args.seed
+        )
+        output_file = output_dir / f"flooding_N{args.nodes}_K{args.neighbors}_churn{churn_pct}.csv"
+
+    else:  # kademlia
+        logger.info(
+            f"Starting CHURN simulation: kademlia, N={args.nodes}, B={args.bits}, "
+            f"churn={args.churn_rate}, rounds={args.rounds}, searches/round={args.runs}"
+        )
+        results = run_kademlia_churn_experiment(
+            network_size=args.nodes,
+            id_bits=args.bits,
+            churn_rate=args.churn_rate,
+            num_rounds=args.rounds,
+            searches_per_round=args.runs,
+            k=args.k_bucket,
+            alpha=args.alpha,
+            seed=args.seed
+        )
+        output_file = output_dir / f"kademlia_N{args.nodes}_B{args.bits}_churn{churn_pct}.csv"
+
+    # Export CSV
+    import csv
+    fieldnames = [
+        'round', 'nodes_in_network', 'nodes_churned', 'resources_lost',
+        'total_searches', 'successful_searches', 'success_rate',
+        'avg_messages', 'avg_hops'
+    ]
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(results)
+
+    # Print summary
+    final = results[-1] if results else {}
+    print(f"\n=== Churn Simulation Results ({args.architecture}) ===")
+    print(f"Network size (N): {args.nodes}")
+    print(f"Churn rate: {args.churn_rate*100:.0f}% per round")
+    print(f"Rounds: {args.rounds}")
+    print(f"Final round success rate: {final.get('success_rate', 0)*100:.1f}%")
+    print(f"Total resources lost: {sum(r['resources_lost'] for r in results)}")
+    logger.info(f"Results exported to {output_file}")
 
 
 def main():
@@ -211,7 +270,13 @@ def main():
         '--churn-rate',
         type=float,
         default=0.05,
-        help='[Churn] Percentage of nodes that leave/join per time step'
+        help='[Churn] Fraction of nodes that leave/join per round (e.g. 0.05 = 5%%)'
+    )
+    parser.add_argument(
+        '--rounds',
+        type=int,
+        default=20,
+        help='[Churn] Number of churn rounds'
     )
 
     args = parser.parse_args()

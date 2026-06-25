@@ -7,6 +7,8 @@ network_sizes:
   - 100
   - 500
   - 1000
+  - 5000
+  - 15000
 
 # Flooding parameters
 flooding:
@@ -21,7 +23,7 @@ flooding:
 
 # Kademlia parameters
 kademlia:
-  id_bits_b: 8           # Number of bits for node ID (8 for small nets, 16 for medium)
+  id_bits_b: 16          # Number of bits for node ID (16 for medium nets; 8 causes ID collisions for N>256)
   k_bucket_size: 3       # K parameter for k-buckets (typical: 3-20)
   alpha: 3               # Concurrent lookups in iterative search
 

@@ -27,10 +27,6 @@ wheels/
 .ipynb_checkpoints
 *.ipynb_checkpoints/
 
-# Data files (keep structure, ignore large CSV results)
-data/flooding/*.csv
-data/kademlia/*.csv
-data/churn/*.csv
 # Keep .gitkeep files
 !data/**/.gitkeep
 

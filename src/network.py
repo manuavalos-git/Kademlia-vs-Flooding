@@ -10,6 +10,8 @@ from typing import List, Set, Optional
 import random
 import logging
 
+import networkx as nx
+
 from .node import Node
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,7 @@ class Network:
         """
         self.size = size
         self.nodes: List[Node] = []
+        self._seed = seed
 
         if seed is not None:
             random.seed(seed)
@@ -51,8 +54,9 @@ class Network:
         Returns:
             Node with given ID, or None if not found
         """
-        if 0 <= node_id < self.size:
-            return self.nodes[node_id]
+        for node in self.nodes:
+            if node.node_id == node_id:
+                return node
         return None
 
     def distribute_resources(self, num_resources: int, replication: int = 1) -> None:
@@ -71,27 +75,53 @@ class Network:
         logger.info(f"Distributed {num_resources} resources with replication={replication}")
 
     def create_random_topology(self, neighbors_per_node: int) -> None:
-        """Create random graph topology for flooding network.
+        """Create a K-regular random graph topology.
 
-        Each node gets K random neighbors (undirected edges).
+        Uses networkx.random_regular_graph so every node has exactly K neighbors.
+        Falls back to a simpler sampling approach if the regular graph cannot be
+        constructed (e.g. tiny networks where multiple retries would be needed).
 
         Args:
-            neighbors_per_node: Number of neighbors (K) per node
+            neighbors_per_node: Exact number of neighbors (K) per node
         """
         for node in self.nodes:
-            # Get potential neighbors (all nodes except this one)
-            candidates = [n for n in self.nodes if n != node]
+            node.neighbors.clear()
 
-            # Add random neighbors
-            num_to_add = min(neighbors_per_node, len(candidates))
-            new_neighbors = random.sample(candidates, num_to_add)
+        if self.size <= 1:
+            return
 
-            for neighbor in new_neighbors:
-                # Create bidirectional connection
-                node.add_neighbor(neighbor)
-                neighbor.add_neighbor(node)
+        # Clamp K to valid range
+        k = min(neighbors_per_node, self.size - 1)
 
-        logger.info(f"Created random topology with K={neighbors_per_node} neighbors per node")
+        # parity constraint: n*k must be even
+        if (self.size * k) % 2 != 0:
+            k -= 1
+
+        if k <= 0:
+            logger.warning(f"Cannot build topology: k={k} for n={self.size}")
+            return
+
+        try:
+            G = nx.random_regular_graph(k, self.size, seed=self._seed)
+            for u, v in G.edges():
+                self.nodes[u].add_neighbor(self.nodes[v])
+                self.nodes[v].add_neighbor(self.nodes[u])
+        except nx.NetworkXError:
+            # fallback
+            logger.warning("random_regular_graph failed; using sampling fallback")
+            for node in self.nodes:
+                needed = k - len(node.neighbors)
+                if needed <= 0:
+                    continue
+                candidates = [n for n in self.nodes if n != node and n not in node.neighbors]
+                for neighbor in random.sample(candidates, min(needed, len(candidates))):
+                    node.add_neighbor(neighbor)
+                    neighbor.add_neighbor(node)
+
+        if k != neighbors_per_node:
+            logger.info(f"K adjusted from {neighbors_per_node} to {k} (parity)")
+
+        logger.info(f"Created {k}-regular random topology for {self.size} nodes")
 
     def is_connected(self) -> bool:
         """Check if the network is connected (BFS from node 0).

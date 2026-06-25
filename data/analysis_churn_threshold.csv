@@ -1,0 +1,7 @@
+Architecture,Churn %,Baseline success %,Final success %,First round below 90% success,Degrades significantly
+Flooding K=10,5,100.0,36.0,5,yes
+Flooding K=10,10,100.0,12.0,2,yes
+Flooding K=10,20,100.0,2.0,1,yes
+Kademlia B=16,5,100.0,52.0,3,yes
+Kademlia B=16,10,100.0,10.0,1,yes
+Kademlia B=16,20,100.0,2.0,1,yes

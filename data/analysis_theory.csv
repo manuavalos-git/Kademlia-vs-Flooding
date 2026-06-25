@@ -1,0 +1,8 @@
+N,Tcs (s),Tp2p (s),Tcs/Tp2p ratio,Bottleneck Tcs,Tp2p bottleneck
+10,800.0,800.0,1.0,download,F/dmin
+50,4000.0,800.0,5.0,server,F/dmin
+100,8000.0,800.0,10.0,server,F/dmin
+500,40000.0,800.0,50.0,server,F/dmin
+1000,80000.0,800.0,100.0,server,F/dmin
+5000,400000.0,800.0,500.0,server,F/dmin
+15000,1200000.0,800.0,1500.0,server,F/dmin
