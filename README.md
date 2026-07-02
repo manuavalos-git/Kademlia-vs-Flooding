@@ -35,6 +35,43 @@ Kademlia-vs-Flooding/
     └── figures/                   ← gráficos generados por plot_results.py
 ```
 
+## Reproducir todos los resultados del informe
+
+Los siguientes pasos permiten clonar el repositorio y reproducir exactamente todos los resultados, figuras y análisis estadísticos del informe, comenzando desde cero.
+
+```bash
+# 1. Clonar el repositorio
+git clone <url-del-repo>
+cd Kademlia-vs-Flooding
+
+# 2. Crear entorno virtual e instalar dependencias
+python -m venv venv
+source venv/Scripts/activate   # Windows Git Bash
+# source venv/bin/activate     # Linux / Mac
+pip install -r requirements.txt
+
+# 3. Verificar que los tests pasan
+python -m pytest tests/ -v
+
+# 4. Correr simulaciones de flooding y Kademlia (Tareas 1 y 2)
+#    Genera ~55 CSVs en data/flooding/ y data/kademlia/
+python analysis/run_all_simulations.py
+
+# 5. Correr experimentos de churn con 30 repeticiones (Tarea 4)
+#    Genera 18 CSVs en data/churn/*_reps30.csv  (~3-4 hs, ver nota abajo)
+python analysis/run_churn_reps.py --reps 30
+
+# 6. Generar todos los gráficos
+python analysis/plot_results.py --input data/ --output informe/figures/
+
+# 7. Generar análisis estadístico (regresiones, Mann-Whitney, tablas)
+python analysis/statistical_analysis.py --input data/
+```
+
+> **Nota de tiempo**: el paso 5 con `--reps 30` tarda ~3-4 horas en una máquina de escritorio convencional porque N=15000 requiere ~8 min por configuración × 30 reps. Para una prueba rápida usá `--reps 5` (~25 minutos, resultados comparables).
+
+> **Semilla fija**: todos los comandos usan `--seed 42` por defecto, garantizando reproducibilidad exacta en cualquier plataforma con la misma versión de Python.
+
 ## Requisitos
 
 - Python 3.10 o superior
@@ -85,14 +122,23 @@ Parámetros:
 ### Ejecutar Simulación con Churn
 
 ```bash
-python -m src.simulation --mode churn --architecture <flooding|kademlia> --nodes <N> --churn-rate <tasa> --rounds <rondas> --runs <busquedas_por_ronda>
+python -m src.simulation --mode churn --architecture <flooding|kademlia> \
+    --nodes <N> --churn-rate <tasa> --rounds <rondas> --runs <busquedas_por_ronda> \
+    [--churn-reps <repeticiones>]
 ```
 
 Parámetros:
 - `--architecture`: `flooding` o `kademlia`
 - `--churn-rate`: Fracción de nodos que abandonan/unen por ronda (0.05 = 5%)
 - `--rounds`: Número de rondas de churn (default 20)
-- `--runs`: Búsquedas por ronda (default 100)
+- `--runs`: Búsquedas por ronda (default 50)
+- `--churn-reps`: Repeticiones independientes (default 1). Con `--churn-reps 30` corre el experimento 30 veces con distintas semillas y guarda un CSV con media ± desvío estándar por ronda en `data/churn/*_reps30.csv`.
+
+Para reproducir los resultados de la Tabla 7 del informe (con desvío estándar) de manera automática para las 18 configuraciones:
+
+```bash
+python analysis/run_churn_reps.py --reps 30
+```
 
 ## Reproducir Experimentos
 
@@ -266,8 +312,9 @@ python -m pytest tests/ -v
 Los resultados de las simulaciones se guardan en formato CSV en el directorio `data/`:
 - `data/flooding/results_N{n}_K{k}.csv` — búsquedas individuales (flooding)
 - `data/kademlia/results_N{n}_B{b}.csv` — búsquedas individuales (Kademlia)
-- `data/churn/flooding_N{n}_K{k}_churn{pct}.csv` — métricas por ronda bajo churn (flooding)
-- `data/churn/kademlia_N{n}_B{b}_churn{pct}.csv` — métricas por ronda bajo churn (Kademlia)
+- `data/churn/flooding_N{n}_K{k}_churn{pct}.csv` — métricas por ronda bajo churn, corrida única
+- `data/churn/kademlia_N{n}_B{b}_churn{pct}.csv` — ídem para Kademlia
+- `data/churn/*_reps30.csv` — media ± desvío estándar por ronda sobre 30 repeticiones independientes
 
 CSVs de flooding/kademlia (una fila por búsqueda):
 - `messages`: Mensajes intercambiados

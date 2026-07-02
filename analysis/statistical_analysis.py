@@ -365,6 +365,68 @@ def fit_kademlia_scaling(kad_raw: pd.DataFrame, b_val: int = 16) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Mann-Whitney U test: flooding vs Kademlia per N
+# ---------------------------------------------------------------------------
+
+def mann_whitney_comparison(flood_raw: pd.DataFrame, kad_raw: pd.DataFrame) -> pd.DataFrame:
+    """Mann-Whitney U test comparing messages/search between flooding (K=10) and Kademlia (B=16).
+
+    H0: the message-count distribution is identical for both architectures at a given N.
+    Uses a two-sided test and applies Bonferroni correction for the 7 N values tested.
+
+    Effect size is the rank-biserial correlation r = 1 − 2U/(n₁·n₂), in [−1, 1]:
+        r > 0  → flooding produces more messages (expected for large N).
+        |r| ≥ 0.5 is considered a large effect (Cohen 1992).
+    """
+    N_values = [10, 50, 100, 500, 1000, 5000, 15000]
+    alpha = 0.05
+    alpha_bonf = alpha / len(N_values)  # ≈ 0.0071
+    rows = []
+
+    for n in N_values:
+        f_msgs = (
+            flood_raw[(flood_raw["N"] == n) & (flood_raw["K"] == 10)]["messages"]
+            .dropna()
+            .values
+        )
+        k_msgs = (
+            kad_raw[(kad_raw["N"] == n) & (kad_raw["B"] == 16)]["messages"]
+            .dropna()
+            .values
+        )
+
+        if len(f_msgs) == 0 or len(k_msgs) == 0:
+            rows.append({
+                "N": n,
+                "Flood median": float("nan"),
+                "Kad median": float("nan"),
+                "U statistic": float("nan"),
+                "p-value": float("nan"),
+                "p < 0.05": "—",
+                "p < alpha_Bonf": "—",
+                "Effect r": float("nan"),
+            })
+            continue
+
+        u_stat, p_val = stats.mannwhitneyu(f_msgs, k_msgs, alternative="two-sided")
+        n1, n2 = len(f_msgs), len(k_msgs)
+        r = 1.0 - 2.0 * u_stat / (n1 * n2)
+
+        rows.append({
+            "N": n,
+            "Flood median": float(np.median(f_msgs)),
+            "Kad median": float(np.median(k_msgs)),
+            "U statistic": round(u_stat, 1),
+            "p-value": p_val,
+            "p < 0.05": "yes" if p_val < alpha else "no",
+            "p < alpha_Bonf": "yes" if p_val < alpha_bonf else "no",
+            "Effect r": round(r, 4),
+        })
+
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
 # Churn threshold identification
 # ---------------------------------------------------------------------------
 
@@ -526,6 +588,21 @@ def main() -> None:
             .rename(columns={"success": "Kademlia B=16 success %"})
         )
         print(k_sr.to_string(index=False))
+
+    # --- Table 4: Mann-Whitney U test ---
+    _banner(
+        "TABLE 4: Mann-Whitney U test -- flooding (K=10) vs Kademlia (B=16) messages/search\n"
+        "  H0: identical distribution. alpha=0.05, Bonferroni-corrected alpha_adj~0.0071 (7 tests).\n"
+        "  Effect r: rank-biserial correlation (r>0 => flooding sends more messages)."
+    )
+    if not flood_raw.empty and not kad_raw.empty:
+        mw = mann_whitney_comparison(flood_raw, kad_raw)
+        print(_fmt(mw))
+        mw_path = data_dir / "analysis_mann_whitney.csv"
+        mw.to_csv(mw_path, index=False, float_format="%.6g")
+        logger.info("Saved %s", mw_path)
+    else:
+        logger.warning("Need both flooding and Kademlia data to run Mann-Whitney test")
 
     # --- Table 3: Churn threshold identification ---
     _banner("TABLE 3: Churn degradation threshold (>10% search failures) — N=1000")

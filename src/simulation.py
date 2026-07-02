@@ -116,74 +116,126 @@ def run_kademlia_simulation(args) -> None:
     logger.info(f"Results exported to {output_file}")
 
 
-def run_churn_simulation(args) -> None:
-    """Run churn simulation for flooding or Kademlia.
-
-    Args:
-        args: Command-line arguments
-    """
-    if not args.architecture:
-        logger.error("--architecture is required for churn mode (flooding or kademlia)")
-        sys.exit(1)
-
-    churn_pct = int(args.churn_rate * 100)
-    output_dir = Path(args.output_dir) / "churn"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
+def _run_single_churn(args, seed: int) -> list[dict]:
+    """Run one churn experiment with the given seed; returns per-round dicts."""
     if args.architecture == 'flooding':
-        logger.info(
-            f"Starting CHURN simulation: flooding, N={args.nodes}, K={args.neighbors}, "
-            f"churn={args.churn_rate}, rounds={args.rounds}, searches/round={args.runs}"
-        )
-        results = run_flooding_churn_experiment(
+        return run_flooding_churn_experiment(
             network_size=args.nodes,
             neighbors_k=args.neighbors,
             churn_rate=args.churn_rate,
             num_rounds=args.rounds,
             searches_per_round=args.runs,
             ttl=args.ttl,
-            seed=args.seed
+            seed=seed,
         )
-        output_file = output_dir / f"flooding_N{args.nodes}_K{args.neighbors}_churn{churn_pct}.csv"
+    return run_kademlia_churn_experiment(
+        network_size=args.nodes,
+        id_bits=args.bits,
+        churn_rate=args.churn_rate,
+        num_rounds=args.rounds,
+        searches_per_round=args.runs,
+        k=args.k_bucket,
+        alpha=args.alpha,
+        seed=seed,
+    )
 
-    else:  # kademlia
+
+def run_churn_simulation(args) -> None:
+    """Run churn simulation for flooding or Kademlia.
+
+    When --churn-reps > 1, runs the experiment that many times with
+    different seeds and writes an aggregated CSV with mean ± std per round.
+
+    Args:
+        args: Command-line arguments
+    """
+    import csv
+    import numpy as np
+
+    if not args.architecture:
+        logger.error("--architecture is required for churn mode (flooding or kademlia)")
+        sys.exit(1)
+
+    churn_pct = int(args.churn_rate * 100)
+    reps = args.churn_reps
+    output_dir = Path(args.output_dir) / "churn"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    base_seed = args.seed if args.seed is not None else 42
+
+    if args.architecture == 'flooding':
+        logger.info(
+            f"Starting CHURN simulation: flooding, N={args.nodes}, K={args.neighbors}, "
+            f"churn={args.churn_rate}, rounds={args.rounds}, searches/round={args.runs}, reps={reps}"
+        )
+        single_file = output_dir / f"flooding_N{args.nodes}_K{args.neighbors}_churn{churn_pct}.csv"
+        reps_file   = output_dir / f"flooding_N{args.nodes}_K{args.neighbors}_churn{churn_pct}_reps{reps}.csv"
+    else:
         logger.info(
             f"Starting CHURN simulation: kademlia, N={args.nodes}, B={args.bits}, "
-            f"churn={args.churn_rate}, rounds={args.rounds}, searches/round={args.runs}"
+            f"churn={args.churn_rate}, rounds={args.rounds}, searches/round={args.runs}, reps={reps}"
         )
-        results = run_kademlia_churn_experiment(
-            network_size=args.nodes,
-            id_bits=args.bits,
-            churn_rate=args.churn_rate,
-            num_rounds=args.rounds,
-            searches_per_round=args.runs,
-            k=args.k_bucket,
-            alpha=args.alpha,
-            seed=args.seed
-        )
-        output_file = output_dir / f"kademlia_N{args.nodes}_B{args.bits}_churn{churn_pct}.csv"
+        single_file = output_dir / f"kademlia_N{args.nodes}_B{args.bits}_churn{churn_pct}.csv"
+        reps_file   = output_dir / f"kademlia_N{args.nodes}_B{args.bits}_churn{churn_pct}_reps{reps}.csv"
 
-    # Export CSV
-    import csv
+    if reps == 1:
+        results = _run_single_churn(args, base_seed)
+        fieldnames = [
+            'round', 'nodes_in_network', 'nodes_churned', 'resources_lost',
+            'total_searches', 'successful_searches', 'success_rate',
+            'avg_messages', 'avg_hops',
+        ]
+        with open(single_file, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(results)
+        final = results[-1] if results else {}
+        print(f"\n=== Churn Simulation Results ({args.architecture}) ===")
+        print(f"Network size (N): {args.nodes}, Churn: {args.churn_rate*100:.0f}%, Rounds: {args.rounds}")
+        print(f"Final round success rate: {final.get('success_rate', 0)*100:.1f}%")
+        logger.info(f"Results exported to {single_file}")
+        return
+
+    # --- Multi-rep path ---
+    all_runs: list[list[dict]] = []
+    for i in range(reps):
+        logger.info(f"  Rep {i+1}/{reps} (seed={base_seed + i})")
+        all_runs.append(_run_single_churn(args, base_seed + i))
+
+    num_rounds = len(all_runs[0])
+    agg_rows = []
+    for r in range(num_rounds):
+        sr   = [run[r]['success_rate']  for run in all_runs]
+        msgs = [run[r]['avg_messages']  for run in all_runs]
+        hops = [run[r]['avg_hops']      for run in all_runs]
+        agg_rows.append({
+            'round':               r,
+            'success_rate_mean':   round(float(np.mean(sr)),   4),
+            'success_rate_std':    round(float(np.std(sr, ddof=1)), 4),
+            'avg_messages_mean':   round(float(np.mean(msgs)), 3),
+            'avg_messages_std':    round(float(np.std(msgs, ddof=1)), 3),
+            'avg_hops_mean':       round(float(np.mean(hops)), 3),
+            'avg_hops_std':        round(float(np.std(hops, ddof=1)), 3),
+            'n_reps':              reps,
+        })
+
     fieldnames = [
-        'round', 'nodes_in_network', 'nodes_churned', 'resources_lost',
-        'total_searches', 'successful_searches', 'success_rate',
-        'avg_messages', 'avg_hops'
+        'round',
+        'success_rate_mean', 'success_rate_std',
+        'avg_messages_mean', 'avg_messages_std',
+        'avg_hops_mean',     'avg_hops_std',
+        'n_reps',
     ]
-    with open(output_file, 'w', newline='') as f:
+    with open(reps_file, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(results)
+        writer.writerows(agg_rows)
 
-    # Print summary
-    final = results[-1] if results else {}
-    print(f"\n=== Churn Simulation Results ({args.architecture}) ===")
-    print(f"Network size (N): {args.nodes}")
-    print(f"Churn rate: {args.churn_rate*100:.0f}% per round")
-    print(f"Rounds: {args.rounds}")
-    print(f"Final round success rate: {final.get('success_rate', 0)*100:.1f}%")
-    print(f"Total resources lost: {sum(r['resources_lost'] for r in results)}")
-    logger.info(f"Results exported to {output_file}")
+    print(f"\n=== Churn Simulation Results ({args.architecture}, {reps} reps) ===")
+    print(f"Network size (N): {args.nodes}, Churn: {args.churn_rate*100:.0f}%, Rounds: {args.rounds}")
+    final = agg_rows[-1]
+    print(f"Final round success rate: {final['success_rate_mean']*100:.1f}% ± {final['success_rate_std']*100:.1f}%")
+    logger.info(f"Results exported to {reps_file}")
 
 
 def main():
@@ -277,6 +329,12 @@ def main():
         type=int,
         default=20,
         help='[Churn] Number of churn rounds'
+    )
+    parser.add_argument(
+        '--churn-reps',
+        type=int,
+        default=1,
+        help='[Churn] Number of independent repetitions; when >1 writes mean±std per round'
     )
 
     args = parser.parse_args()
